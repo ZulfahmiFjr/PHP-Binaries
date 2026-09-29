@@ -16,7 +16,7 @@ if test "$PHP_NAUTICRENDERER" != "no"; then
 
   PHP_NEW_EXTENSION(
     nauticrenderer,
-    nauticrenderer.c,
+    nauticrenderer.c nautic_math.c,
     $ext_shared
   )
 fi
