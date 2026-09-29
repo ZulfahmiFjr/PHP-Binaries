@@ -13,7 +13,7 @@ typedef struct {
     int64_t seed;
 } PMMP_Random;
 
-void random_set_seed(PMMP_Random* r, int64_t seed) {
+static void random_set_seed(PMMP_Random* r, int64_t seed) {
     r->seed = seed;
     r->x = 123456789LL ^ seed;
     r->y = 362436069LL ^ (seed << 17) | ((seed >> 15) & 0x7fffffffLL) & 0xffffffffLL;
@@ -21,7 +21,7 @@ void random_set_seed(PMMP_Random* r, int64_t seed) {
     r->w = 88675123LL  ^ (seed << 18) | ((seed >> 14) & 0x7fffffffLL) & 0xffffffffLL;
 }
 
-int32_t random_next_signed_int(PMMP_Random* r) {
+static int32_t random_next_signed_int(PMMP_Random* r) {
     int64_t t = (r->x ^ (r->x << 11)) & 0xffffffffLL;
     r->x = r->y;
     r->y = r->z;
@@ -34,19 +34,19 @@ int32_t random_next_signed_int(PMMP_Random* r) {
     return (int32_t)r->w;
 }
 
-int32_t random_next_int(PMMP_Random* r) {
+static int32_t random_next_int(PMMP_Random* r) {
     return random_next_signed_int(r) & 0x7fffffff;
 }
 
-double random_next_float(PMMP_Random* r) {
+static double random_next_float(PMMP_Random* r) {
     return (double)random_next_int(r) / 2147483647.0;
 }
 
-int32_t random_next_bounded_int(PMMP_Random* r, int32_t bound) {
+static int32_t random_next_bounded_int(PMMP_Random* r, int32_t bound) {
     return random_next_int(r) % bound;
 }
 
-int32_t random_next_range(PMMP_Random* r, int32_t start, int32_t end) {
+static int32_t random_next_range(PMMP_Random* r, int32_t start, int32_t end) {
     return start + (random_next_int(r) % (end + 1 - start));
 }
 
@@ -73,7 +73,7 @@ static const double F2 = 0.5 * (1.73205080756887729352 - 1.0);
 static const double G2 = (3.0 - 1.73205080756887729352) / 6.0;
 static const double G22 = ((3.0 - 1.73205080756887729352) / 6.0) * 2.0 - 1.0;
 
-void simplex_init(PMMP_Simplex* s, PMMP_Random* r, int32_t octaves, double persistence, double expansion) {
+static void simplex_init(PMMP_Simplex* s, PMMP_Random* r, int32_t octaves, double persistence, double expansion) {
     s->octaves = octaves;
     s->persistence = persistence;
     s->expansion = expansion;
@@ -95,7 +95,7 @@ void simplex_init(PMMP_Simplex* s, PMMP_Random* r, int32_t octaves, double persi
     random_next_signed_int(r);
 }
 
-double simplex_get_noise_2d(PMMP_Simplex* s, double x, double y) {
+static double simplex_get_noise_2d(PMMP_Simplex* s, double x, double y) {
     x += s->offsetX;
     y += s->offsetY;
 
@@ -144,22 +144,22 @@ double simplex_get_noise_2d(PMMP_Simplex* s, double x, double y) {
 // ==========================================
 // BAGIAN 3: KALKULASI MAP & TERRAIN
 // ==========================================
-double clamp_val(double v, double min_val, double max_val) {
+static double clamp_val(double v, double min_val, double max_val) {
     if (v < min_val) return min_val;
     if (v > max_val) return max_val;
     return v;
 }
 
-double smooth_step(double edge0, double edge1, double x) {
+static double smooth_step(double edge0, double edge1, double x) {
     double t = clamp_val((x - edge0) / (edge1 - edge0), 0.0, 1.0);
     return t * t * (3.0 - 2.0 * t);
 }
 
-double lerp_val(double a, double b, double t) {
+static double lerp_val(double a, double b, double t) {
     return a + (b - a) * t;
 }
 
-int64_t mix_seed(int64_t seed, int64_t a, int64_t b) {
+static int64_t mix_seed(int64_t seed, int64_t a, int64_t b) {
     int64_t h = seed ^ (a * 73428767LL) ^ (b * 912367LL);
     h ^= (h << 13);
     h ^= (h >> 17);
