@@ -1119,6 +1119,14 @@ function get_pecl_extension {
 cd "$BUILD_DIR/php"
 write_out "PHP" "Downloading additional extensions..."
 
+echo -n "  nauticrenderer: adding local source..."
+
+cp -R \
+    "$DIR/extensions/nauticrenderer" \
+    "$BUILD_DIR/php/ext/nauticrenderer"
+
+write_done
+
 get_github_extension "pmmpthread" "$EXT_PMMPTHREAD_VERSION" "pmmp" "ext-pmmpthread"
 
 
