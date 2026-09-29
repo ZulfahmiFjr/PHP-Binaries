@@ -6,32 +6,54 @@
 // BAGIAN 1: ENGINE RANDOM XORSHIFT128 (TRUE 64-BIT PHP CLONE)
 // ==========================================
 typedef struct {
-    int64_t x;
-    int64_t y;
-    int64_t z;
-    int64_t w;
+    uint64_t x;
+    uint64_t y;
+    uint64_t z;
+    uint64_t w;
     int64_t seed;
 } PMMP_Random;
 
+/*
+ * PocketMine's Random uses 64-bit PHP integer bit operations. Use unsigned
+ * arithmetic for left shifts so negative/large seeds keep deterministic
+ * two's-complement wrapping without invoking signed-overflow UB in C.
+ */
+static uint64_t arithmetic_shift_right_u64(uint64_t value, unsigned int shift) {
+    if (shift == 0) {
+        return value;
+    }
+
+    uint64_t result = value >> shift;
+    if ((value & (UINT64_C(1) << 63)) != 0) {
+        result |= (~UINT64_C(0)) << (64 - shift);
+    }
+    return result;
+}
+
 static void random_set_seed(PMMP_Random* r, int64_t seed) {
+    const uint64_t bits = (uint64_t)seed;
+
     r->seed = seed;
-    r->x = 123456789LL ^ seed;
-    r->y = 362436069LL ^ (seed << 17) | ((seed >> 15) & 0x7fffffffLL) & 0xffffffffLL;
-    r->z = 521288629LL ^ (seed << 31) | ((seed >> 1) & 0x7fffffffLL) & 0xffffffffLL;
-    r->w = 88675123LL  ^ (seed << 18) | ((seed >> 14) & 0x7fffffffLL) & 0xffffffffLL;
+    r->x = UINT64_C(123456789) ^ bits;
+    r->y = (UINT64_C(362436069) ^ (bits << 17)) |
+        ((arithmetic_shift_right_u64(bits, 15) & UINT64_C(0x7fffffff)) & UINT64_C(0xffffffff));
+    r->z = (UINT64_C(521288629) ^ (bits << 31)) |
+        ((arithmetic_shift_right_u64(bits, 1) & UINT64_C(0x7fffffff)) & UINT64_C(0xffffffff));
+    r->w = (UINT64_C(88675123) ^ (bits << 18)) |
+        ((arithmetic_shift_right_u64(bits, 14) & UINT64_C(0x7fffffff)) & UINT64_C(0xffffffff));
 }
 
 static int32_t random_next_signed_int(PMMP_Random* r) {
-    int64_t t = (r->x ^ (r->x << 11)) & 0xffffffffLL;
+    uint64_t t = (r->x ^ (r->x << 11)) & UINT64_C(0xffffffff);
     r->x = r->y;
     r->y = r->z;
     r->z = r->w;
 
-    int64_t w_shift = (r->w >> 19) & 0x7fffffffLL;
-    int64_t t_shift = (t >> 8) & 0x7fffffffLL;
+    uint64_t w_shift = (r->w >> 19) & UINT64_C(0x7fffffff);
+    uint64_t t_shift = (t >> 8) & UINT64_C(0x7fffffff);
 
-    r->w = (r->w ^ w_shift ^ (t ^ t_shift)) & 0xffffffffLL;
-    return (int32_t)r->w;
+    r->w = (r->w ^ w_shift ^ (t ^ t_shift)) & UINT64_C(0xffffffff);
+    return (int32_t)(uint32_t)r->w;
 }
 
 static int32_t random_next_int(PMMP_Random* r) {
@@ -160,11 +182,16 @@ static double lerp_val(double a, double b, double t) {
 }
 
 static int64_t mix_seed(int64_t seed, int64_t a, int64_t b) {
-    int64_t h = seed ^ (a * 73428767LL) ^ (b * 912367LL);
-    h ^= (h << 13);
-    h ^= (h >> 17);
-    h ^= (h << 5);
-    return h;
+    uint64_t h =
+        (uint64_t)seed ^
+        ((uint64_t)a * UINT64_C(73428767)) ^
+        ((uint64_t)b * UINT64_C(912367));
+
+    h ^= h << 13;
+    h ^= arithmetic_shift_right_u64(h, 17);
+    h ^= h << 5;
+
+    return (int64_t)h;
 }
 
 void nautic_render_map_core(
