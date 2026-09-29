@@ -26,7 +26,6 @@ jobs:
       - name: Install build tools
         run: |
           sudo apt-get update
-
           sudo apt-get install -y \
             make autoconf automake \
             libtool libtool-bin \
@@ -42,7 +41,6 @@ jobs:
         with:
           path: ./download_cache
           key: php-build-download-cache-${{ hashFiles('./compile.sh') }}
-
           restore-keys: |
             php-build-download-cache-
 
@@ -66,28 +64,21 @@ jobs:
         working-directory: musl-cross-make
         run: |
           echo "TARGET = aarch64-linux-musl" > config.mak
-
-          echo \
-          "GNU_SITE = https://mirrors.kernel.org/gnu" \
-          >> config.mak
-
-          echo \
-          "DL_CMD = wget -c --timeout=30 --tries=5 --retry-connrefused --retry-on-http-error=502,503,504 -O" \
-          >> config.mak
+          echo "GNU_SITE = https://mirrors.kernel.org/gnu" >> config.mak
+          echo "DL_CMD = wget -c --timeout=30 --tries=5 --retry-connrefused --retry-on-http-error=502,503,504 -O" >> config.mak
 
           make -j$(nproc)
           make install
 
-          mv ./output \
-            "${{ github.workspace }}/compiler"
+          mv ./output "${{ github.workspace }}/compiler"
 
       - name: Compile PHP Android ARM64
         run: |
           export PATH="${{ github.workspace }}/compiler/bin:$PATH"
 
-          set -ex
+          set -x
 
-          ./compile.sh \
+          if ! ./compile.sh \
             -t android-aarch64 \
             -x \
             -j 4 \
@@ -96,14 +87,27 @@ jobs:
             -c ./download_cache \
             -D \
             -z 8.2
+          then
+            echo "===== LAST 250 LINES OF install.log ====="
+            tail -n 250 install.log || true
+            exit 1
+          fi
 
-      - name: Inspect NauticRenderer
+      - name: Verify NauticRenderer is linked
         run: |
-          echo "Checking NauticRenderer symbols..."
+          test -x ./bin/php7/bin/php
 
+          strings ./bin/php7/bin/php | grep -q "nauticrenderer"
+          strings ./bin/php7/bin/php | grep -q "nautic_render_map"
+
+          echo "NauticRenderer static symbols found."
+
+      - name: Inspect PHP binary
+        run: |
+          file ./bin/php7/bin/php
           strings ./bin/php7/bin/php \
-            | grep -i nautic \
-            | head -50 \
+            | grep -E 'nauticrenderer|nautic_render_map|NAUTIC_RENDERER' \
+            | head -80 \
             || true
 
       - name: Create PHP archive
@@ -115,13 +119,11 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v6
         if: always()
-
         with:
           name: PHP-8.2-Android-arm64-PM5-NauticStatic
-
           path: |
             PHP-8.2-Android-arm64-PM5-NauticStatic.tar.gz
             install.log
             compile.sh
-
+            extensions/nauticrenderer
           if-no-files-found: warn
