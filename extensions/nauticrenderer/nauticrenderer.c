@@ -6,15 +6,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <limits.h>
 
 #include "php.h"
 #include "ext/standard/info.h"
 #include "php_nauticrenderer.h"
-
-#define NAUTIC_MAP_WIDTH 128
-#define NAUTIC_MAP_HEIGHT 128
-#define NAUTIC_MAP_CHANNELS 3
-#define NAUTIC_MAP_BUFFER_SIZE (NAUTIC_MAP_WIDTH * NAUTIC_MAP_HEIGHT * NAUTIC_MAP_CHANNELS)
 
 void nautic_render_map_core(
     double centerX, double centerZ, double yaw, int64_t worldSeed,
@@ -25,19 +21,6 @@ void nautic_render_map_core(
     int changeCount, int* changedX, int* changedZ, int* changedType,
     unsigned char* buffer
 );
-
-PHP_FUNCTION(nautic_add)
-{
-    zend_long a;
-    zend_long b;
-
-    ZEND_PARSE_PARAMETERS_START(2, 2)
-        Z_PARAM_LONG(a)
-        Z_PARAM_LONG(b)
-    ZEND_PARSE_PARAMETERS_END();
-
-    RETURN_LONG(a + b);
-}
 
 PHP_FUNCTION(nautic_render_map)
 {
@@ -75,17 +58,50 @@ PHP_FUNCTION(nautic_render_map)
         Z_PARAM_ARRAY(changesArray)
     ZEND_PARSE_PARAMETERS_END();
 
+    if(plotSize <= 0){
+        zend_argument_value_error(5, "must be greater than 0");
+        RETURN_THROWS();
+    }
+    if(gap < 0){
+        zend_argument_value_error(6, "must be greater than or equal to 0");
+        RETURN_THROWS();
+    }
+    if(beachWidth < 0){
+        zend_argument_value_error(11, "must be greater than or equal to 0");
+        RETURN_THROWS();
+    }
+    if(radMin <= 0){
+        zend_argument_value_error(12, "must be greater than 0");
+        RETURN_THROWS();
+    }
+    if(radMax < radMin){
+        zend_argument_value_error(13, "must be greater than or equal to islandRadiusMin");
+        RETURN_THROWS();
+    }
+    if(plotSize > INT_MAX || gap > INT_MAX || seaLevel < INT_MIN || seaLevel > INT_MAX ||
+        oceanBase < INT_MIN || oceanBase > INT_MAX || oceanVar < INT_MIN || oceanVar > INT_MAX ||
+        islandHeightPeak < INT_MIN || islandHeightPeak > INT_MAX || beachWidth > INT_MAX ||
+        radMin > INT_MAX || radMax > INT_MAX){
+        zend_value_error("NauticRenderer integer argument is outside the native renderer range");
+        RETURN_THROWS();
+    }
+
     HashTable *otherHt = Z_ARRVAL_P(otherPlayersArray);
     uint32_t otherCapacity = zend_hash_num_elements(otherHt);
     double *otherPlayers = NULL;
     int otherCount = 0;
 
-    if (otherCapacity > 0) {
+    if(otherCapacity > 0){
+        if(otherCapacity > (uint32_t) INT_MAX){
+            zend_value_error("Too many player markers for NauticRenderer");
+            RETURN_THROWS();
+        }
+
         otherPlayers = safe_emalloc((size_t) otherCapacity * 3, sizeof(double), 0);
 
         zval *playerEntry;
-        ZEND_HASH_FOREACH_VAL(otherHt, playerEntry) {
-            if (Z_TYPE_P(playerEntry) != IS_ARRAY) {
+        ZEND_HASH_FOREACH_VAL(otherHt, playerEntry){
+            if(Z_TYPE_P(playerEntry) != IS_ARRAY){
                 continue;
             }
 
@@ -94,7 +110,7 @@ PHP_FUNCTION(nautic_render_map)
             zval *zValue = zend_hash_str_find(playerHt, "z", sizeof("z") - 1);
             zval *yawValue = zend_hash_str_find(playerHt, "yaw", sizeof("yaw") - 1);
 
-            if (xValue == NULL || zValue == NULL || yawValue == NULL) {
+            if(xValue == NULL || zValue == NULL || yawValue == NULL){
                 continue;
             }
 
@@ -112,7 +128,15 @@ PHP_FUNCTION(nautic_render_map)
     int *changedType = NULL;
     int changeCount = 0;
 
-    if (changeCapacity > 0) {
+    if(changeCapacity > 0){
+        if(changeCapacity > (uint32_t) INT_MAX){
+            if(otherPlayers != NULL){
+                efree(otherPlayers);
+            }
+            zend_value_error("Too many changed columns for NauticRenderer");
+            RETURN_THROWS();
+        }
+
         changedX = safe_emalloc(changeCapacity, sizeof(int), 0);
         changedZ = safe_emalloc(changeCapacity, sizeof(int), 0);
         changedType = safe_emalloc(changeCapacity, sizeof(int), 0);
@@ -121,8 +145,10 @@ PHP_FUNCTION(nautic_render_map)
         zend_string *stringKey;
         zval *changeValue;
 
-        ZEND_HASH_FOREACH_KEY_VAL(changesHt, numericKey, stringKey, changeValue) {
-            if (stringKey == NULL) {
+        ZEND_HASH_FOREACH_KEY_VAL(changesHt, numericKey, stringKey, changeValue){
+            (void) numericKey;
+
+            if(stringKey == NULL){
                 continue;
             }
 
@@ -130,18 +156,22 @@ PHP_FUNCTION(nautic_render_map)
             char *separator = NULL;
             long bx = strtol(key, &separator, 10);
 
-            if (separator == key || separator == NULL || *separator != ':') {
+            if(separator == key || separator == NULL || *separator != ':'){
                 continue;
             }
 
             char *end = NULL;
             long bz = strtol(separator + 1, &end, 10);
 
-            if (end == separator + 1 || end == NULL || *end != '\0') {
+            if(end == separator + 1 || end == NULL || *end != '\0'){
                 continue;
             }
 
-            if (fabs((double) bx - centerX) > 100.0 || fabs((double) bz - centerZ) > 100.0) {
+            if(bx < INT_MIN || bx > INT_MAX || bz < INT_MIN || bz > INT_MAX){
+                continue;
+            }
+
+            if(fabs((double) bx - centerX) > 100.0 || fabs((double) bz - centerZ) > 100.0){
                 continue;
             }
 
@@ -178,10 +208,10 @@ PHP_FUNCTION(nautic_render_map)
         buffer
     );
 
-    if (otherPlayers != NULL) {
+    if(otherPlayers != NULL){
         efree(otherPlayers);
     }
-    if (changedX != NULL) {
+    if(changedX != NULL){
         efree(changedX);
         efree(changedZ);
         efree(changedType);
@@ -190,17 +220,6 @@ PHP_FUNCTION(nautic_render_map)
     ZSTR_VAL(result)[NAUTIC_MAP_BUFFER_SIZE] = '\0';
     RETURN_STR(result);
 }
-
-ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(
-    arginfo_nautic_add,
-    0,
-    2,
-    IS_LONG,
-    0
-)
-    ZEND_ARG_TYPE_INFO(0, a, IS_LONG, 0)
-    ZEND_ARG_TYPE_INFO(0, b, IS_LONG, 0)
-ZEND_END_ARG_INFO()
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(
     arginfo_nautic_render_map,
@@ -220,22 +239,49 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(
     ZEND_ARG_TYPE_INFO(0, oceanVar, IS_LONG, 0)
     ZEND_ARG_TYPE_INFO(0, islandHeightPeak, IS_LONG, 0)
     ZEND_ARG_TYPE_INFO(0, beachWidth, IS_LONG, 0)
-    ZEND_ARG_TYPE_INFO(0, radMin, IS_LONG, 0)
-    ZEND_ARG_TYPE_INFO(0, radMax, IS_LONG, 0)
+    ZEND_ARG_TYPE_INFO(0, islandRadiusMin, IS_LONG, 0)
+    ZEND_ARG_TYPE_INFO(0, islandRadiusMax, IS_LONG, 0)
     ZEND_ARG_TYPE_INFO(0, otherPlayers, IS_ARRAY, 0)
     ZEND_ARG_TYPE_INFO(0, changes, IS_ARRAY, 0)
 ZEND_END_ARG_INFO()
 
 static const zend_function_entry nauticrenderer_functions[] = {
-    PHP_FE(nautic_add, arginfo_nautic_add)
     PHP_FE(nautic_render_map, arginfo_nautic_render_map)
     PHP_FE_END
 };
+
+PHP_MINIT_FUNCTION(nauticrenderer)
+{
+    REGISTER_LONG_CONSTANT(
+        "NAUTIC_RENDERER_API_VERSION",
+        PHP_NAUTICRENDERER_API_VERSION,
+        CONST_CS | CONST_PERSISTENT
+    );
+    REGISTER_LONG_CONSTANT(
+        "NAUTIC_RENDERER_MAP_WIDTH",
+        NAUTIC_MAP_WIDTH,
+        CONST_CS | CONST_PERSISTENT
+    );
+    REGISTER_LONG_CONSTANT(
+        "NAUTIC_RENDERER_MAP_HEIGHT",
+        NAUTIC_MAP_HEIGHT,
+        CONST_CS | CONST_PERSISTENT
+    );
+    REGISTER_LONG_CONSTANT(
+        "NAUTIC_RENDERER_BUFFER_SIZE",
+        NAUTIC_MAP_BUFFER_SIZE,
+        CONST_CS | CONST_PERSISTENT
+    );
+
+    return SUCCESS;
+}
 
 PHP_MINFO_FUNCTION(nauticrenderer)
 {
     php_info_print_table_start();
     php_info_print_table_header(2, "NauticRenderer support", "enabled");
+    php_info_print_table_row(2, "Version", PHP_NAUTICRENDERER_VERSION);
+    php_info_print_table_row(2, "API version", "1");
     php_info_print_table_row(2, "Renderer type", "native static C");
     php_info_print_table_row(2, "Map output", "128x128 RGB binary string");
     php_info_print_table_row(2, "Map buffer size", "49152 bytes");
@@ -246,7 +292,7 @@ zend_module_entry nauticrenderer_module_entry = {
     STANDARD_MODULE_HEADER,
     "nauticrenderer",
     nauticrenderer_functions,
-    NULL,
+    PHP_MINIT(nauticrenderer),
     NULL,
     NULL,
     NULL,
