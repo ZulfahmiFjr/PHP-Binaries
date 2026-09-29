@@ -1290,6 +1290,7 @@ $HAS_GD \
 --with-leveldb="$INSTALL_DIR" \
 --without-readline \
 $HAS_DEBUG \
+--enable-nauticrenderer \
 --enable-chunkutils2 \
 --enable-morton \
 --enable-mbstring \
