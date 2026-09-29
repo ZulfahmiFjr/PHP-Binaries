@@ -4,6 +4,7 @@
 
 #include "php.h"
 #include "ext/standard/info.h"
+#include "php_nauticrenderer.h"
 
 PHP_FUNCTION(nautic_add)
 {
@@ -59,7 +60,7 @@ zend_module_entry nauticrenderer_module_entry = {
     NULL,
     NULL,
     PHP_MINFO(nauticrenderer),
-    "0.1.0",
+    PHP_NAUTICRENDERER_VERSION,
     STANDARD_MODULE_PROPERTIES
 };
 
