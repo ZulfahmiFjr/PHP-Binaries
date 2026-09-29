@@ -1,0 +1,127 @@
+name: Build Android Nautic Static
+
+on:
+  push:
+    branches:
+      - android-nautic-static
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MUSL_CROSS_MAKE_VERSION: 43fcb1e63786b96add78f89d7454709ae0159fa0
+
+jobs:
+  android-nautic:
+    name: Android ARM64 PHP 8.2 + NauticRenderer
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install build tools
+        run: |
+          sudo apt-get update
+
+          sudo apt-get install -y \
+            make autoconf automake \
+            libtool libtool-bin \
+            m4 wget libc-bin \
+            gzip bzip2 bison \
+            g++ git re2c \
+            pkg-config \
+            ca-certificates \
+            python3
+
+      - name: Cache PHP downloads
+        uses: actions/cache@v5
+        with:
+          path: ./download_cache
+          key: php-build-download-cache-${{ hashFiles('./compile.sh') }}
+
+          restore-keys: |
+            php-build-download-cache-
+
+      - name: Cache musl compiler
+        id: compiler-cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ github.workspace }}/compiler
+          key: musl-cross-make-${{ env.MUSL_CROSS_MAKE_VERSION }}
+
+      - name: Checkout musl-cross-make
+        if: steps.compiler-cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v5
+        with:
+          repository: pmmp/musl-cross-make
+          path: musl-cross-make
+          ref: ${{ env.MUSL_CROSS_MAKE_VERSION }}
+
+      - name: Build ARM64 musl compiler
+        if: steps.compiler-cache.outputs.cache-hit != 'true'
+        working-directory: musl-cross-make
+        run: |
+          echo "TARGET = aarch64-linux-musl" > config.mak
+
+          echo \
+          "GNU_SITE = https://mirrors.kernel.org/gnu" \
+          >> config.mak
+
+          echo \
+          "DL_CMD = wget -c --timeout=30 --tries=5 --retry-connrefused --retry-on-http-error=502,503,504 -O" \
+          >> config.mak
+
+          make -j$(nproc)
+          make install
+
+          mv ./output \
+            "${{ github.workspace }}/compiler"
+
+      - name: Compile PHP Android ARM64
+        run: |
+          export PATH="${{ github.workspace }}/compiler/bin:$PATH"
+
+          set -ex
+
+          ./compile.sh \
+            -t android-aarch64 \
+            -x \
+            -j 4 \
+            -g \
+            -P 5 \
+            -c ./download_cache \
+            -D \
+            -z 8.2
+
+      - name: Inspect NauticRenderer
+        run: |
+          echo "Checking NauticRenderer symbols..."
+
+          strings ./bin/php7/bin/php \
+            | grep -i nautic \
+            | head -50 \
+            || true
+
+      - name: Create PHP archive
+        run: |
+          tar -czf \
+            PHP-8.2-Android-arm64-PM5-NauticStatic.tar.gz \
+            bin
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        if: always()
+
+        with:
+          name: PHP-8.2-Android-arm64-PM5-NauticStatic
+
+          path: |
+            PHP-8.2-Android-arm64-PM5-NauticStatic.tar.gz
+            install.log
+            compile.sh
+
+          if-no-files-found: warn
