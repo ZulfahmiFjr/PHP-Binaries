@@ -29,6 +29,8 @@ try{ atlas_render(atlasFixture(), $regionCamera, ["rgb" => "", "hits" => "", "pr
 try{ atlas_render(atlasFixture(), $regionCamera); throw new RuntimeException("Region without base accepted"); }catch(ValueError $e){}
 $centreHit = array_values(unpack("V3", $large["hits"], (192 * 640 + 320) * 12));
 if($centreHit === [2147483648,2147483648,2147483648]){ throw new RuntimeException("Visible geometry has no hit"); }
+$extreme = atlas_render(atlasFixture(), array_merge($camera, ["azimuth" => 1e308]));
+if(strlen($extreme["rgb"]) !== 49152){ throw new RuntimeException("Extreme finite azimuth invalid"); }
 $out = getenv("ATLAS_TEST_OUTPUT");
 if(is_string($out) && $out !== ""){
     file_put_contents($out, "P6\n640 384\n255\n" . $large["rgb"]);

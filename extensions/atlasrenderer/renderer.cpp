@@ -29,7 +29,7 @@ Vec add(Vec a,Vec b) { return {a.x+b.x,a.y+b.y,a.z+b.z}; }
 Vec mul(Vec a,double k) { return {a.x*k,a.y*k,a.z*k}; }
 struct Basis { Vec right,up,dir; };
 Basis basis(const Camera &c) {
-    double a=c.azimuth*std::acos(-1)/180, i=c.inclination*std::acos(-1)/180;
+    double a=std::fmod(c.azimuth,360.0)*std::acos(-1)/180, i=c.inclination*std::acos(-1)/180;
     return {{std::cos(a),0,-std::sin(a)}, {-std::sin(a)*std::sin(i),std::cos(i),-std::cos(a)*std::sin(i)}, {std::sin(a)*std::cos(i),-std::sin(i),std::cos(a)*std::cos(i)}};
 }
 void validate(const Camera &c) {
@@ -92,12 +92,13 @@ struct World {
         for(unsigned n=0;n<tc;++n)textures.push_back(r.bytes(1024));
         for(const auto&m:models)for(auto id:m.tex)if(id!=65535&&id>=tc)throw std::invalid_argument("Unknown texture");
         unsigned cc=r.u32(); if(cc>4096)throw std::invalid_argument("Too many chunks");
+        unsigned total_sections=0;
         for(unsigned n=0;n<cc;++n) {
             int cx=r.i32(),cz=r.i32(); if(std::abs(int64_t(cx))>1875000||std::abs(int64_t(cz))>1875000)throw std::invalid_argument("Chunk coordinate outside supported range");
             uint8_t preview=r.u8(); if(preview>1)throw std::invalid_argument("Invalid preview flag");
             if(!chunks.emplace(Key{cx,0,cz},preview).second)throw std::invalid_argument("Duplicate chunk");
             minx=std::min(minx,cx*16);maxx=std::max(maxx,cx*16+16); minz=std::min(minz,cz*16);maxz=std::max(maxz,cz*16+16);
-            unsigned sc=r.u16(); if(sc>512)throw std::invalid_argument("Too many sections");
+            unsigned sc=r.u16(); total_sections+=sc; if(sc>512||total_sections>16384)throw std::invalid_argument("Too many sections");
             for(unsigned j=0;j<sc;++j) {
                 int sy=r.i32(); if(sy*int64_t(16)<miny || sy*int64_t(16)>=maxy)throw std::invalid_argument("Section outside world");
                 unsigned lc=r.u8(); if(lc==0||lc>2)throw std::invalid_argument("Invalid layer count"); Section s;
