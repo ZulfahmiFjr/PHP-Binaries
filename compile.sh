@@ -1127,6 +1127,10 @@ cp -R \
 
 write_done
 
+echo -n "  atlasrenderer: adding local source..."
+cp -R "$DIR/extensions/atlasrenderer" "$BUILD_DIR/php/ext/atlasrenderer"
+write_done
+
 get_github_extension "pmmpthread" "$EXT_PMMPTHREAD_VERSION" "pmmp" "ext-pmmpthread"
 
 
@@ -1291,6 +1295,7 @@ $HAS_GD \
 --without-readline \
 $HAS_DEBUG \
 --enable-nauticrenderer \
+--enable-atlasrenderer \
 --enable-chunkutils2 \
 --enable-morton \
 --enable-mbstring \
