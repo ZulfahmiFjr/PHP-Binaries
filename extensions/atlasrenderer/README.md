@@ -35,3 +35,13 @@ API 2 supports partial renders: camera.region is [left, top, right, bottom]
 the rectangle remain byte-identical. Model flags use low two bits for tint
 (0 none, 1 top grass, 2 foliage, 3 water) and bit 2 for connected nine-box fences.
 Textured RGB is multiplied by the model colour, supporting dyed blocks.
+
+Projection version 2 corrects the horizontal signs of the downward ray direction.
+The image right/up vectors and ray direction now form an orthogonal basis, so
+higher geometry rises on screen and the 45-degree view no longer collapses.
+ABW1 and API version 2 remain compatible. Detect the correction using
+ATLAS_RENDERER_PROJECTION_VERSION === 2. AtlasBoard 1.1.1 compensates for the
+older binary when this constant is absent; the corrected binary uses the normal
+single-render path and is preferred for performance. Roof projection tests cover
+20/45/60/80-degree views and opposite azimuths. NauticRenderer is unchanged.
+

@@ -57,10 +57,10 @@ ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(arginfo_atlas_tiles,0,3,IS_ARRAY,0)
     ZEND_ARG_TYPE_INFO(0,height,IS_LONG,0)
 ZEND_END_ARG_INFO()
 static const zend_function_entry functions[]={PHP_FE(atlas_render,arginfo_atlas_render) PHP_FE(atlas_split_tiles,arginfo_atlas_tiles) PHP_FE_END};
-PHP_MINIT_FUNCTION(atlasrenderer){REGISTER_LONG_CONSTANT("ATLAS_RENDERER_API_VERSION",atlas::API_VERSION,CONST_CS|CONST_PERSISTENT);return SUCCESS;}
-PHP_MINFO_FUNCTION(atlasrenderer){php_info_print_table_start();php_info_print_table_row(2,"AtlasBoard renderer","enabled");php_info_print_table_row(2,"API version","2");php_info_print_table_end();}
+PHP_MINIT_FUNCTION(atlasrenderer){REGISTER_LONG_CONSTANT("ATLAS_RENDERER_API_VERSION",atlas::API_VERSION,CONST_CS|CONST_PERSISTENT);REGISTER_LONG_CONSTANT("ATLAS_RENDERER_PROJECTION_VERSION",2,CONST_CS|CONST_PERSISTENT);return SUCCESS;}
+PHP_MINFO_FUNCTION(atlasrenderer){php_info_print_table_start();php_info_print_table_row(2,"AtlasBoard renderer","enabled");php_info_print_table_row(2,"API version","2");php_info_print_table_row(2,"Projection version","2");php_info_print_table_end();}
 extern "C" {
-zend_module_entry atlasrenderer_module_entry={STANDARD_MODULE_HEADER,"atlasrenderer",functions,PHP_MINIT(atlasrenderer),nullptr,nullptr,nullptr,PHP_MINFO(atlasrenderer),"1.1.0",STANDARD_MODULE_PROPERTIES};
+zend_module_entry atlasrenderer_module_entry={STANDARD_MODULE_HEADER,"atlasrenderer",functions,PHP_MINIT(atlasrenderer),nullptr,nullptr,nullptr,PHP_MINFO(atlasrenderer),"1.2.0",STANDARD_MODULE_PROPERTIES};
 #ifdef COMPILE_DL_ATLASRENDERER
 #ifdef ZTS
 ZEND_TSRMLS_CACHE_DEFINE()
@@ -68,3 +68,4 @@ ZEND_TSRMLS_CACHE_DEFINE()
 ZEND_GET_MODULE(atlasrenderer)
 #endif
 }
+

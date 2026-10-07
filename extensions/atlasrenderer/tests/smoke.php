@@ -31,8 +31,22 @@ $centreHit = array_values(unpack("V3", $large["hits"], (192 * 640 + 320) * 12));
 if($centreHit === [2147483648,2147483648,2147483648]){ throw new RuntimeException("Visible geometry has no hit"); }
 $extreme = atlas_render(atlasFixture(), array_merge($camera, ["azimuth" => 1e308]));
 if(strlen($extreme["rgb"]) !== 49152){ throw new RuntimeException("Extreme finite azimuth invalid"); }
+// The image-up and downward ray vectors must be orthogonal. Roofs rise
+// on screen at either azimuth, including the old degenerate 45-degree view.
+if(!defined("ATLAS_RENDERER_PROJECTION_VERSION") || ATLAS_RENDERER_PROJECTION_VERSION !== 2){ throw new RuntimeException("Corrected projection missing"); }
+foreach([20, 45, 60, 80] as $inclination){
+    foreach([135, 315] as $azimuth){
+        $view = ["width" => 128, "height" => 128, "x" => 8.5, "y" => 3, "z" => 8.5, "scale" => 8, "azimuth" => $azimuth, "inclination" => $inclination];
+        $render = atlas_render(atlasFixture(), $view);
+        $roofY = (int) floor(64 - 5 * cos(deg2rad($inclination)) * 8);
+        $hit = array_values(unpack("V3", $render["hits"], ($roofY * 128 + 64) * 12));
+        if($hit !== [8, 7, 8]){ throw new RuntimeException("Inverted roof projection: " . json_encode([$inclination, $azimuth, $hit])); }
+    }
+}
+echo "Orthogonal camera: upward roofs at 20/45/60/80 degrees, both azimuths: OK" . PHP_EOL;
 $out = getenv("ATLAS_TEST_OUTPUT");
 if(is_string($out) && $out !== ""){
     file_put_contents($out, "P6\n640 384\n255\n" . $large["rgb"]);
 }
 echo json_encode(["api" => ATLAS_RENDERER_API_VERSION, "tiles" => count($tiles), "render_ms" => $large["render_ms"], "rgb_bytes" => strlen($large["rgb"]), "hit_bytes" => strlen($large["hits"]), "peak_php_bytes" => memory_get_peak_usage(true)], JSON_PRETTY_PRINT) . "\n";
+

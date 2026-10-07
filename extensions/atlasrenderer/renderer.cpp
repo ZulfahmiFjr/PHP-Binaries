@@ -30,7 +30,7 @@ Vec mul(Vec a,double k) { return {a.x*k,a.y*k,a.z*k}; }
 struct Basis { Vec right,up,dir; };
 Basis basis(const Camera &c) {
     double a=std::fmod(c.azimuth,360.0)*std::acos(-1)/180, i=c.inclination*std::acos(-1)/180;
-    return {{std::cos(a),0,-std::sin(a)}, {-std::sin(a)*std::sin(i),std::cos(i),-std::cos(a)*std::sin(i)}, {std::sin(a)*std::cos(i),-std::sin(i),std::cos(a)*std::cos(i)}};
+    return {{std::cos(a),0,-std::sin(a)}, {-std::sin(a)*std::sin(i),std::cos(i),-std::cos(a)*std::sin(i)}, {-std::sin(a)*std::cos(i),-std::sin(i),-std::cos(a)*std::cos(i)}};
 }
 void validate(const Camera &c) {
     if(c.width < 1 || c.width > 1024 || c.height < 1 || c.height > 1024 || int64_t(c.width)*c.height > 524288)
@@ -229,3 +229,4 @@ std::vector<std::string> split_tiles(const std::string&rgb,int width,int height)
     }return result;
 }
 }
+
