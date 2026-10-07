@@ -1,7 +1,7 @@
-# AtlasRenderer API 1
+# AtlasRenderer API 2
 
 Independent PHP extension, no FFI. C++17, no process-wide mutable renderer state.
-`atlas_render(string $snapshot, array $camera): array` returns RGB bytes, pixel
+`atlas_render(string $snapshot, array $camera, ?array $previous = null): array` returns RGB bytes, pixel
 hit coordinates (little-endian signed int32 X/Y/Z), preview flags and render timing.
 `atlas_split_tiles(string $rgb, int $width, int $height): array` returns row-major
 128x128 RGB images. INT32_MIN indicates no selectable hit. Preview flags: 1 for
@@ -9,7 +9,7 @@ generator terrain, 2 for missing data or an exhausted traversal budget.
 
 ABW1 is a versioned little-endian format owned by AtlasBoard, not permanent
 PocketMine chunk storage. Header: magic, int32 minY/maxY, uint32 model count.
-Each model: RGBA (4 bytes), tint byte, box count byte, three uint16 texture IDs
+Each model: RGBA (4 bytes), flags byte, box count byte, three uint16 texture IDs
 (top/side/bottom; 65535 means flat color), then six float32 values per box.
 Texture count uint16 followed by 16x16 RGBA images. Chunk count uint32 followed
 by int32 X/Z, preview byte, uint16 section count. Each section contains int32 Y,
@@ -29,3 +29,9 @@ matching PHP runtime. Tests/smoke.php validates palette widths, input boundaries
 and exact reconstruction of 15 tiles. The Android workflow executes the static
 aarch64 binary through QEMU, including an unchanged NauticRenderer regression.
 QEMU tests do not establish client visuals, Android thermal behavior or FPS.
+
+API 2 supports partial renders: camera.region is [left, top, right, bottom]
+(exclusive right/bottom); pass previous rgb/hits/preview buffers. Pixels outside
+the rectangle remain byte-identical. Model flags use low two bits for tint
+(0 none, 1 top grass, 2 foliage, 3 water) and bit 2 for connected nine-box fences.
+Textured RGB is multiplied by the model colour, supporting dyed blocks.

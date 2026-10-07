@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . "/fixture.php";
-if(!extension_loaded("atlasrenderer") || ATLAS_RENDERER_API_VERSION !== 1){ throw new RuntimeException("AtlasRenderer API 1 missing"); }
+if(!extension_loaded("atlasrenderer") || ATLAS_RENDERER_API_VERSION !== 2){ throw new RuntimeException("AtlasRenderer API 2 missing"); }
 $camera = ["width" => 128, "height" => 128, "x" => 8, "y" => 4, "z" => 8, "scale" => 5];
 foreach([1, 2, 3, 4, 5, 6, 8, 16] as $bits){
     $result = atlas_render(atlasFixture($bits), $camera);
@@ -22,6 +22,13 @@ foreach(["", "ABW1", substr(atlasFixture(), 0, -1), atlasFixture() . "x"] as $in
 foreach([NAN, INF, -1, 1e30, 128.5] as $invalid){
     try{ atlas_render(atlasFixture(), array_merge($camera, ["width" => $invalid])); throw new RuntimeException("Invalid camera accepted"); }catch(ValueError $e){}
 }
+$regionCamera = array_merge($camera, ["width" => 640, "height" => 384, "region" => [256, 128, 384, 256]]);
+$partial = atlas_render(atlasFixture(), $regionCamera, $large);
+if($partial["rgb"] !== $large["rgb"] || $partial["hits"] !== $large["hits"] || $partial["preview"] !== $large["preview"] || $partial["traced_voxels"] >= $large["traced_voxels"]){ throw new RuntimeException("Partial render mismatch"); }
+try{ atlas_render(atlasFixture(), $regionCamera, ["rgb" => "", "hits" => "", "preview" => ""]); throw new RuntimeException("Invalid base accepted"); }catch(ValueError $e){}
+try{ atlas_render(atlasFixture(), $regionCamera); throw new RuntimeException("Region without base accepted"); }catch(ValueError $e){}
+$centreHit = array_values(unpack("V3", $large["hits"], (192 * 640 + 320) * 12));
+if($centreHit === [2147483648,2147483648,2147483648]){ throw new RuntimeException("Visible geometry has no hit"); }
 $out = getenv("ATLAS_TEST_OUTPUT");
 if(is_string($out) && $out !== ""){
     file_put_contents($out, "P6\n640 384\n255\n" . $large["rgb"]);

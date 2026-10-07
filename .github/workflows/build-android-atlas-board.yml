@@ -121,6 +121,7 @@ jobs:
           qemu-aarch64 ./bin/php7/bin/php -n -r 'if(!extension_loaded("atlasrenderer") || !extension_loaded("nauticrenderer")){exit(1);} echo "Both native extensions loaded\\n";'
           qemu-aarch64 ./bin/php7/bin/php -n extensions/atlasrenderer/tests/smoke.php
           qemu-aarch64 ./bin/php7/bin/php -n extensions/atlasrenderer/tests/nautic-regression.php
+          timeout 90 qemu-aarch64 ./bin/php7/bin/php -n extensions/atlasrenderer/tests/threads.php
 
       - name: Inspect PHP binary
         run: |

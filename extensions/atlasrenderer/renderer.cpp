@@ -128,12 +128,22 @@ std::vector<double> project(const Camera &c,double x,double y,double z) {
     return {c.width*0.5+(d.x*b.right.x+d.z*b.right.z)*c.scale, c.height*0.5-(d.x*b.up.x+d.y*b.up.y+d.z*b.up.z)*c.scale};
 }
 
-Result render(const std::string &snapshot,const Camera &c) {
+Result render(const std::string &snapshot,const Camera &c,const Result *previous,const std::array<int,4> *region) {
     validate(c); World w(snapshot); auto b=basis(c); Result out;
-    size_t pixels=size_t(c.width)*c.height; out.rgb.resize(pixels*3);out.hits.resize(pixels*12);out.preview.resize(pixels);
+    size_t pixels=size_t(c.width)*c.height;
+    if(previous) {
+        if(previous->rgb.size()!=pixels*3||previous->hits.size()!=pixels*12||previous->preview.size()!=pixels)throw std::invalid_argument("Invalid previous render buffers");
+        out=*previous; out.traced_voxels=0;
+    }
+    std::array<int,4> clip{0,0,c.width,c.height};
+    if(region) {
+        if(!previous)throw std::invalid_argument("Region requires previous render");
+        clip=*region; if(clip[0]<0||clip[1]<0||clip[2]>c.width||clip[3]>c.height||clip[0]>=clip[2]||clip[1]>=clip[3])throw std::invalid_argument("Invalid render region");
+    }
+    out.rgb.resize(pixels*3);out.hits.resize(pixels*12);out.preview.resize(pixels);
     Box bounds{{double(w.minx),double(w.miny),double(w.minz),double(w.maxx),double(w.maxy),double(w.maxz)}};
     double distance=std::max(8192.0,std::abs(c.y)+std::abs(w.maxy)+std::abs(w.miny)+c.width/c.scale+c.height/c.scale);
-    for(int py=0;py<c.height;++py)for(int px=0;px<c.width;++px) {
+    for(int py=clip[1];py<clip[3];++py)for(int px=clip[0];px<clip[2];++px) {
         size_t p=size_t(py)*c.width+px; for(int a=0;a<3;++a)put_i32(out.hits,p*12+a*4,INT32_MIN);
         double sx=(px+0.5-c.width*0.5)/c.scale,sy=(c.height*0.5-py-0.5)/c.scale;
         Vec o=add(add(add(Vec{c.x,c.y,c.z},mul(b.right,sx)),mul(b.up,sy)),mul(b.dir,-distance));
@@ -171,7 +181,7 @@ Result render(const std::string &snapshot,const Camera &c) {
                             }
                             const auto&box=m.boxes[box_index];
                             double nt,ft;int f;Vec local{o.x-x,o.y-y,o.z-z};
-                            if(intersect(local,b.dir,box,nt,ft,f)&&ft>=t-EPS&&nt<=next+EPS&&nt>=t-EPS&&nt<best){best=std::max(nt,t);bestface=f;}
+                            if(intersect(local,b.dir,box,nt,ft,f)&&ft>=t-EPS&&nt<=next+EPS&&nt>=t-16*EPS&&nt<best){best=std::max(nt,t);bestface=f;}
                         }
                         if(best<INF)candidates.push_back({best,bestface,id});
                     }
