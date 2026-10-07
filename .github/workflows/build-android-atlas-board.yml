@@ -7,6 +7,10 @@ on:
 
   workflow_dispatch:
 
+concurrency:
+  group: android-atlas-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -71,6 +75,13 @@ jobs:
           make install
 
           mv ./output "${{ github.workspace }}/compiler"
+
+      - name: Save built musl compiler
+        if: steps.compiler-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v5
+        with:
+          path: ${{ github.workspace }}/compiler
+          key: musl-cross-make-${{ env.MUSL_CROSS_MAKE_VERSION }}
 
       - name: Compile PHP Android ARM64
         run: |

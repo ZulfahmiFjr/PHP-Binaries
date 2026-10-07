@@ -1,5 +1,5 @@
 extern "C" {
-#include "php.h"
+#include "php_atlasrenderer.h"
 #include "ext/standard/info.h"
 }
 #include "renderer.h"

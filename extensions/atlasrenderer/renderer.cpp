@@ -40,7 +40,7 @@ void validate(const Camera &c) {
         throw std::invalid_argument("Camera outside supported range");
 }
 struct Box { std::array<double,6> v; };
-struct Model { std::array<uint8_t,4> rgba; uint8_t tint; std::array<uint16_t,3> tex; std::vector<Box> boxes; };
+struct Model { std::array<uint8_t,4> rgba; uint8_t tint,kind; std::array<uint16_t,3> tex; std::vector<Box> boxes; };
 struct Key { int x,y,z; bool operator==(const Key&o)const{return x==o.x&&y==o.y&&z==o.z;} };
 struct KeyHash { size_t operator()(const Key &k)const {
     uint64_t h=uint32_t(k.x)*UINT64_C(0x9e3779b1); h^=uint32_t(k.z)*UINT64_C(0x85ebca77); h^=uint32_t(k.y)*UINT64_C(0xc2b2ae3d); return size_t(h^(h>>32));
@@ -82,9 +82,10 @@ struct World {
         miny=r.i32(); maxy=r.i32(); if(miny < -4096 || maxy>4096 || miny>=maxy) throw std::invalid_argument("Invalid world height");
         unsigned mc=r.u32(); if(mc==0||mc>65536) throw std::invalid_argument("Invalid model count"); models.reserve(mc);
         for(unsigned n=0;n<mc;++n) {
-            Model m; for(auto &v:m.rgba)v=r.u8(); m.tint=r.u8(); if(m.tint>2) throw std::invalid_argument("Invalid tint mode");
+            Model m; for(auto &v:m.rgba)v=r.u8(); uint8_t flags=r.u8(); m.tint=flags&3; m.kind=flags>>2; if(m.kind>1) throw std::invalid_argument("Invalid model flags");
             unsigned bc=r.u8(); if(bc>16)throw std::invalid_argument("Too many model boxes"); for(auto &v:m.tex)v=r.u16();
             for(unsigned j=0;j<bc;++j) { Box b; for(auto &v:b.v)v=r.f32(); for(int a=0;a<3;++a) if(b.v[a]<0 || b.v[a+3]>1 || b.v[a]>=b.v[a+3])throw std::invalid_argument("Invalid model box"); m.boxes.push_back(b); }
+            if(m.kind==1 && m.boxes.size()!=9) throw std::invalid_argument("Fence model needs nine boxes");
             models.push_back(std::move(m));
         }
         unsigned tc=r.u16(); if(tc>4096)throw std::invalid_argument("Too many textures");
@@ -136,7 +137,7 @@ Result render(const std::string &snapshot,const Camera &c) {
         size_t p=size_t(py)*c.width+px; for(int a=0;a<3;++a)put_i32(out.hits,p*12+a*4,INT32_MIN);
         double sx=(px+0.5-c.width*0.5)/c.scale,sy=(c.height*0.5-py-0.5)/c.scale;
         Vec o=add(add(add(Vec{c.x,c.y,c.z},mul(b.right,sx)),mul(b.up,sy)),mul(b.dir,-distance));
-        double start,end;int face; double color[3]={0,0,0},remain=1; bool unknown=false,any_preview=false;
+        double start,end;int face; double color[3]={0,0,0},remain=1; bool unknown=false,any_preview=false,has_hit=false;
         if(!w.chunks.empty()&&intersect(o,b.dir,bounds,start,end,face)) {
             double t=std::max(0.0,start)+EPS; int steps=0; uint32_t last_transparent=UINT32_MAX;
             while(t<end&&steps++<c.max_steps&&remain>0.015) {
@@ -157,7 +158,18 @@ Result render(const std::string &snapshot,const Camera &c) {
                     for(const auto&layer:s.layers) {
                         uint32_t id=layer.at(x,y,z);const Model&m=w.models[id];if(m.rgba[3]==0||m.boxes.empty())continue;
                         double best=INF;int bestface=0;
-                        for(const auto&box:m.boxes) {
+                        for(size_t box_index=0;box_index<m.boxes.size();++box_index) {
+                            if(m.kind==1 && box_index>0) {
+                                unsigned side=unsigned((box_index-1)/2);
+                                int nx=x+(side==0?-1:(side==1?1:0)),nz=z+(side==2?-1:(side==3?1:0));
+                                auto neighbour=w.sections.find(Key{floor16(nx),sY,floor16(nz)});
+                                if(neighbour==w.sections.end())continue;
+                                const auto&nm=w.models[neighbour->second.layers[0].at(nx,y,nz)];
+                                bool connects=nm.kind==1;
+                                if(nm.rgba[3]==255)for(const auto&nb:nm.boxes)if(nb.v==std::array<double,6>{0,0,0,1,1,1})connects=true;
+                                if(!connects)continue;
+                            }
+                            const auto&box=m.boxes[box_index];
                             double nt,ft;int f;Vec local{o.x-x,o.y-y,o.z-z};
                             if(intersect(local,b.dir,box,nt,ft,f)&&ft>=t-EPS&&nt<=next+EPS&&nt>=t-EPS&&nt<best){best=std::max(nt,t);bestface=f;}
                         }
@@ -170,12 +182,12 @@ Result render(const std::string &snapshot,const Camera &c) {
                         auto rgba=m.rgba;unsigned ti=h.face==3?0:(h.face==2?2:1); auto tex=m.tex[ti];
                         Vec hit=add(o,mul(b.dir,h.t+EPS));double u=0,v=0;
                         if(h.face/2==1){u=hit.x-x;v=hit.z-z;}else if(h.face/2==0){u=hit.z-z;v=1-(hit.y-y);}else{u=hit.x-x;v=1-(hit.y-y);}
-                        if(tex!=65535) {int tx=std::clamp(int(u*16),0,15),ty=std::clamp(int(v*16),0,15);size_t off=(ty*16+tx)*4;for(int a=0;a<4;++a)rgba[a]=uint8_t(w.textures[tex][off+a]);rgba[3]=uint8_t(unsigned(rgba[3])*m.rgba[3]/255);}
+                        if(tex!=65535) {int tx=std::clamp(int(u*16),0,15),ty=std::clamp(int(v*16),0,15);size_t off=(ty*16+tx)*4;for(int a=0;a<4;++a)rgba[a]=uint8_t(unsigned(uint8_t(w.textures[tex][off+a]))*m.rgba[a]/255);rgba[3]=uint8_t(unsigned(rgba[3])*m.rgba[3]/255);}
                         if(rgba[3]==0)continue;
-                        if(m.tint) {uint32_t tint=s.biome.at(x,y,z);if(m.tint==2)tint=0xe4763f; for(int a=0;a<3;++a)rgba[a]=uint8_t(unsigned(rgba[a])*((tint>>(a*8))&255)/255);}
+                        if((m.tint==1&&h.face==3)||m.tint==2||m.tint==3) {uint32_t tint=s.biome.at(x,y,z);if(m.tint==3)tint=0xe4763f; for(int a=0;a<3;++a)rgba[a]=uint8_t(unsigned(rgba[a])*((tint>>(a*8))&255)/255);}
                         double shade=h.face==3?1.0:(h.face==2?0.50:(h.face/2==0?0.72:0.84));
                         double alpha=rgba[3]/255.0;for(int a=0;a<3;++a)color[a]+=remain*alpha*rgba[a]*shade;remain*=1-alpha;
-                        if(out.hits[p*12]==char(0)&&out.hits[p*12+3]==char(0x80)) {put_i32(out.hits,p*12,x);put_i32(out.hits,p*12+4,y);put_i32(out.hits,p*12+8,z);}
+                        if(!has_hit) {has_hit=true;put_i32(out.hits,p*12,x);put_i32(out.hits,p*12+4,y);put_i32(out.hits,p*12+8,z);}
                         any_preview=any_preview||(known!=w.chunks.end()&&known->second==1);last_transparent=rgba[3]<255?h.model:UINT32_MAX;
                     }
                 }

@@ -18,6 +18,7 @@ concurrency:
 
 jobs:
   all-builds:
+    if: github.ref_name != 'atlas-board'
     name: PM${{ matrix.pm-version-major }} - PHP ${{ matrix.php-version-base }}
     strategy:
       # one PHP version failing to build must not cancel the others, otherwise a single
