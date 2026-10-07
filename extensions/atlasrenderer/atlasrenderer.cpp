@@ -1,3 +1,7 @@
+#ifdef HAVE_CONFIG_H
+#include "config.h"
+#endif
+
 extern "C" {
 #include "php_atlasrenderer.h"
 #include "ext/standard/info.h"
