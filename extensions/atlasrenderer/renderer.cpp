@@ -110,7 +110,7 @@ struct World {
         if(r.pos!=blob.size())throw std::invalid_argument("Unexpected trailing snapshot bytes");
     }
 };
-int floor16(int n) { return int(std::floor(n/16.0)); }
+int floor16(int n) { return n>=0?n/16:(n-15)/16; }
 bool intersect(Vec o,Vec d,const Box&b,double &near,double &far,int &face) {
     near=-INF; far=INF;face=0;
     for(int a=0;a<3;++a) {
@@ -151,21 +151,29 @@ Result render(const std::string &snapshot,const Camera &c,const Result *previous
         double start,end;int face; double color[3]={0,0,0},remain=1; bool unknown=false,any_preview=false,has_hit=false;
         if(!w.chunks.empty()&&intersect(o,b.dir,bounds,start,end,face)) {
             double t=std::max(0.0,start)+EPS; int steps=0; uint32_t last_transparent=UINT32_MAX;
+            int last_cx=INT32_MAX,last_cz=INT32_MAX,last_sy=INT32_MAX;
+            const Section *section_ptr=nullptr; uint8_t chunk_flag=2;
             while(t<end&&steps++<c.max_steps&&remain>0.015) {
                 ++out.traced_voxels; Vec q=add(o,mul(b.dir,t));int x=int(std::floor(q.x)),y=int(std::floor(q.y)),z=int(std::floor(q.z));
                 int cx=floor16(x),cz=floor16(z),sY=floor16(y);
-                auto known=w.chunks.find(Key{cx,0,cz}); if(known==w.chunks.end())unknown=true;
-                auto section=w.sections.find(Key{cx,sY,cz});
+                if(cx!=last_cx||cz!=last_cz) {
+                    auto known=w.chunks.find(Key{cx,0,cz}); chunk_flag=known==w.chunks.end()?2:known->second;
+                }
+                if(cx!=last_cx||cz!=last_cz||sY!=last_sy) {
+                    auto section=w.sections.find(Key{cx,sY,cz}); section_ptr=section==w.sections.end()?nullptr:&section->second;
+                    last_cx=cx;last_cz=cz;last_sy=sY;
+                }
+                if(chunk_flag==2)unknown=true;
                 // Empty sections and unknown chunks are skipped in 16-block steps.
-                int unit=section==w.sections.end()?16:1;
+                int unit=section_ptr==nullptr?16:1;
                 double next=INF;
                 for(int a=0;a<3;++a)if(std::abs(b.dir[a])>EPS) {
                     int cell=int(std::floor(q[a]/unit));double edge=(b.dir[a]>0?cell+1:cell)*double(unit);
                     next=std::min(next,t+(edge-q[a])/b.dir[a]);
                 }
-                if(section!=w.sections.end()) {
-                    const auto&s=section->second;
-                    struct Hit {double t;int face;uint32_t model;}; std::vector<Hit> candidates;
+                if(section_ptr!=nullptr) {
+                    const auto&s=*section_ptr;
+                    struct Hit {double t;int face;uint32_t model;}; std::array<Hit,2> candidates{}; unsigned candidate_count=0;
                     for(const auto&layer:s.layers) {
                         uint32_t id=layer.at(x,y,z);const Model&m=w.models[id];if(m.rgba[3]==0||m.boxes.empty())continue;
                         double best=INF;int bestface=0;
@@ -184,11 +192,12 @@ Result render(const std::string &snapshot,const Camera &c,const Result *previous
                             double nt,ft;int f;Vec local{o.x-x,o.y-y,o.z-z};
                             if(intersect(local,b.dir,box,nt,ft,f)&&ft>=t-EPS&&nt<=next+EPS&&nt>=t-16*EPS&&nt<best){best=std::max(nt,t);bestface=f;}
                         }
-                        if(best<INF)candidates.push_back({best,bestface,id});
+                        if(best<INF)candidates[candidate_count++]={best,bestface,id};
                     }
-                    std::sort(candidates.begin(),candidates.end(),[](const Hit&a,const Hit&d){return a.t<d.t;});
-                    if(candidates.empty())last_transparent=UINT32_MAX;
-                    for(const auto&h:candidates) {
+                    if(candidate_count==2&&candidates[0].t>candidates[1].t)std::swap(candidates[0],candidates[1]);
+                    if(candidate_count==0)last_transparent=UINT32_MAX;
+                    for(unsigned candidate_index=0;candidate_index<candidate_count;++candidate_index) {
+                        const auto&h=candidates[candidate_index];
                         const auto&m=w.models[h.model]; if(m.rgba[3]<255&&last_transparent==h.model)continue;
                         auto rgba=m.rgba;unsigned ti=h.face==3?0:(h.face==2?2:1); auto tex=m.tex[ti];
                         Vec hit=add(o,mul(b.dir,h.t+EPS));double u=0,v=0;
@@ -199,7 +208,7 @@ Result render(const std::string &snapshot,const Camera &c,const Result *previous
                         double shade=h.face==3?1.0:(h.face==2?0.50:(h.face/2==0?0.72:0.84));
                         double alpha=rgba[3]/255.0;for(int a=0;a<3;++a)color[a]+=remain*alpha*rgba[a]*shade;remain*=1-alpha;
                         if(!has_hit) {has_hit=true;put_i32(out.hits,p*12,x);put_i32(out.hits,p*12+4,y);put_i32(out.hits,p*12+8,z);}
-                        any_preview=any_preview||(known!=w.chunks.end()&&known->second==1);last_transparent=rgba[3]<255?h.model:UINT32_MAX;
+                        any_preview=any_preview||(chunk_flag==1);last_transparent=rgba[3]<255?h.model:UINT32_MAX;
                     }
                 }
                 t=std::max(t+EPS,next+EPS);
