@@ -1,0 +1,55 @@
+name: Windows AtlasBoard API v2
+
+on:
+  push:
+    branches: [atlas-board]
+    paths:
+      - '.github/workflows/build-windows-atlas-board.yml'
+      - 'windows-compile-vs.ps1'
+      - 'extensions/atlasrenderer/**'
+      - 'extensions/nauticrenderer/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-atlas:
+    runs-on: windows-2022
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v5
+      - name: Compile PHP with static Atlas and Nautic renderers
+        shell: powershell
+        run: .\windows-compile-vs.ps1
+        env:
+          SOURCES_PATH: ${{ github.workspace }}\pocketmine-php-sdk
+          PM_VERSION_MAJOR: '5'
+          PHP_VERSION_BASE: '8.4'
+          BUILD_ATLAS_RENDERERS: '1'
+      - name: Verify API v2 and rendering
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $php = Join-Path $pwd 'bin\php\php.exe'
+          & $php --ri atlasrenderer
+          if ($LASTEXITCODE -ne 0) { throw 'Atlas module missing' }
+          foreach ($test in @('smoke.php', 'nautic-regression.php', 'threads.php')) {
+            & $php (Join-Path $pwd "extensions\atlasrenderer\tests\$test")
+            if ($LASTEXITCODE -ne 0) { throw "Failed: $test" }
+          }
+      - name: Package complete Windows runtime
+        shell: powershell
+        run: Compress-Archive -Path .\bin -DestinationPath PHP-Windows-x64-PM5-AtlasBoard-v2.zip
+      - uses: actions/upload-artifact@v6
+        with:
+          name: PHP-Windows-x64-PM5-AtlasBoard-v2
+          path: PHP-Windows-x64-PM5-AtlasBoard-v2.zip
+          if-no-files-found: error
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: Windows-AtlasBoard-build-log
+          path: compile.log
+          if-no-files-found: ignore

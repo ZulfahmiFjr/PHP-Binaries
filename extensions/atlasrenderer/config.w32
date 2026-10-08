@@ -1,0 +1,6 @@
+ARG_ENABLE("atlasrenderer", "AtlasBoard native renderer", "no");
+
+if (PHP_ATLASRENDERER != "no") {
+    EXTENSION("atlasrenderer", "atlasrenderer.cpp renderer.cpp", PHP_ATLASRENDERER_SHARED);
+    ADD_FLAG("CFLAGS_ATLASRENDERER", "/std:c++17 /EHsc /DZEND_ENABLE_STATIC_TSRMLS_CACHE=1");
+}

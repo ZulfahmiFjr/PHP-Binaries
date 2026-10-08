@@ -1,0 +1,6 @@
+ARG_ENABLE("nauticrenderer", "Nautic native renderer", "no");
+
+if (PHP_NAUTICRENDERER != "no") {
+    EXTENSION("nauticrenderer", "nauticrenderer.c nautic_math.c", PHP_NAUTICRENDERER_SHARED);
+    AC_DEFINE("HAVE_NAUTICRENDERER", 1, "NauticRenderer enabled");
+}

@@ -92,6 +92,12 @@ function write-cached {
 $log_file="$pwd\compile.log"
 echo "" > "$log_file"
 $outpath="$pwd"
+$ATLAS_EXTENSION_ROOT = Join-Path $PSScriptRoot "extensions"
+$ATLAS_ENABLED = $env:BUILD_ATLAS_RENDERERS -eq "1"
+$ATLAS_CONFIGURE_FLAGS = ""
+if ($ATLAS_ENABLED) {
+    $ATLAS_CONFIGURE_FLAGS = "--enable-atlasrenderer --enable-nauticrenderer"
+}
 
 pm-echo "PHP compiler for Windows"
 date >> "$log_file"
@@ -516,6 +522,16 @@ cd $BASE_PATH >> $log_file 2>&1
 download-php
 download-php-extensions
 
+if ($ATLAS_ENABLED) {
+    foreach ($name in @("atlasrenderer", "nauticrenderer")) {
+        $source = Join-Path $ATLAS_EXTENSION_ROOT $name
+        if (!(Test-Path (Join-Path $source "config.w32"))) {
+            pm-fatal-error "Windows configuration missing for $name"
+        }
+        Copy-Item -Path $source -Destination "$SOURCES_PATH\ext" -Recurse -Force
+    }
+}
+
 cd "$SOURCES_PATH"
 write-library "PHP" $PHP_VER
 write-configure
@@ -528,6 +544,7 @@ sdk-command "configure^`
     --$PHP_HAVE_DEBUG^`
     --disable-all^`
     --disable-cgi^`
+    $ATLAS_CONFIGURE_FLAGS^`
     --enable-cli^`
     --enable-zts^`
     --enable-pdo^`
