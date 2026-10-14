@@ -1,6 +1,10 @@
 #ifndef NAUTIC_COPILOT_H
 #define NAUTIC_COPILOT_H
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
 #include <vector>
 #include <string>
 #include <unordered_map>
