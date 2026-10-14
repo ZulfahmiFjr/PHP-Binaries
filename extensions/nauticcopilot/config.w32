@@ -1,0 +1,6 @@
+ARG_ENABLE("nauticcopilot", "NauticCraft helicopter autopilot AI copilot acceleration", "no");
+
+if (PHP_NAUTICCOPILOT != "no") {
+    EXTENSION("nauticcopilot", "nauticcopilot.cpp copilot.cpp", PHP_NAUTICCOPILOT_SHARED);
+    ADD_FLAG("CFLAGS_NAUTICCOPILOT", "/std:c++17 /EHsc /DZEND_ENABLE_STATIC_TSRMLS_CACHE=1");
+}

@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference="Stop"
+$ErrorActionPreference="Stop"
 $ProgressPreference="SilentlyContinue"
 
 $PHP_VERSIONS=@("8.1.34", "8.2.33", "8.3.33", "8.4.24", "8.5.9")
@@ -96,7 +96,7 @@ $ATLAS_EXTENSION_ROOT = Join-Path $PSScriptRoot "extensions"
 $ATLAS_ENABLED = $env:BUILD_ATLAS_RENDERERS -eq "1"
 $ATLAS_CONFIGURE_FLAGS = ""
 if ($ATLAS_ENABLED) {
-    $ATLAS_CONFIGURE_FLAGS = "--enable-atlasrenderer --enable-nauticrenderer"
+    $ATLAS_CONFIGURE_FLAGS = "--enable-atlasrenderer --enable-nauticrenderer --enable-nauticcopilot"
 }
 
 pm-echo "PHP compiler for Windows"
@@ -523,7 +523,7 @@ download-php
 download-php-extensions
 
 if ($ATLAS_ENABLED) {
-    foreach ($name in @("atlasrenderer", "nauticrenderer")) {
+    foreach ($name in @("atlasrenderer", "nauticrenderer", "nauticcopilot")) {
         $source = Join-Path $ATLAS_EXTENSION_ROOT $name
         if (!(Test-Path (Join-Path $source "config.w32"))) {
             pm-fatal-error "Windows configuration missing for $name"

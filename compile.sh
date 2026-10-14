@@ -1131,6 +1131,10 @@ echo -n "  atlasrenderer: adding local source..."
 cp -R "$DIR/extensions/atlasrenderer" "$BUILD_DIR/php/ext/atlasrenderer"
 write_done
 
+echo -n "  nauticcopilot: adding local source..."
+cp -R "$DIR/extensions/nauticcopilot" "$BUILD_DIR/php/ext/nauticcopilot"
+write_done
+
 get_github_extension "pmmpthread" "$EXT_PMMPTHREAD_VERSION" "pmmp" "ext-pmmpthread"
 
 
@@ -1296,6 +1300,7 @@ $HAS_GD \
 $HAS_DEBUG \
 --enable-nauticrenderer \
 --enable-atlasrenderer \
+--enable-nauticcopilot \
 --enable-chunkutils2 \
 --enable-morton \
 --enable-mbstring \
